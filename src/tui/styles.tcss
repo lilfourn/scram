@@ -1,9 +1,20 @@
-/* src/tui/styles.tcss */
-
+/* Default (Catppuccin Mocha) */
 Screen {
     background: #1e1e2e;
     color: #cdd6f4;
     align: center middle;
+}
+
+/* Matrix Theme */
+.theme-matrix Screen {
+    background: #000000;
+    color: #00ff41;
+}
+
+/* Cyberpunk Theme */
+.theme-cyberpunk Screen {
+    background: #050a0e;
+    color: #00ff9f;
 }
 
 /* --- Setup Screen --- */
@@ -18,12 +29,30 @@ Screen {
     layout: vertical;
 }
 
+.theme-matrix #setup-container {
+    border: solid #008f11;
+    background: #000000;
+}
+
+.theme-cyberpunk #setup-container {
+    border: solid #00b8ff;
+    background: #050a0e;
+}
+
 .logo {
     color: #89b4fa;
     text-style: bold;
     margin-bottom: 1;
     text-align: center;
     width: 100%;
+}
+
+.theme-matrix .logo {
+    color: #00ff41;
+}
+
+.theme-cyberpunk .logo {
+    color: #ff0055;
 }
 
 .version {
@@ -33,11 +62,27 @@ Screen {
     width: 100%;
 }
 
+.theme-matrix .version {
+    color: #008f11;
+}
+
+.theme-cyberpunk .version {
+    color: #00b8ff;
+}
+
 .commands {
     color: #a6adc8;
     text-align: center;
     margin-bottom: 2;
     width: 100%;
+}
+
+.theme-matrix .commands {
+    color: #008f11;
+}
+
+.theme-cyberpunk .commands {
+    color: #00b8ff;
 }
 
 #history-area {
@@ -53,6 +98,14 @@ Screen {
     width: 100%;
 }
 
+.theme-matrix .history-item {
+    color: #003b00;
+}
+
+.theme-cyberpunk .history-item {
+    color: #711c91;
+}
+
 /* Input Bar Area */
 #input-area {
     height: auto;
@@ -66,6 +119,16 @@ Screen {
     layout: horizontal;
 }
 
+.theme-matrix #input-area {
+    background: #0d0d0d;
+    border-left: solid #00ff41;
+}
+
+.theme-cyberpunk #input-area {
+    background: #000000;
+    border-left: solid #ff0055;
+}
+
 .prompt-symbol {
     color: #89b4fa;
     text-style: bold;
@@ -73,6 +136,16 @@ Screen {
     width: auto;
     background: #181825; /* Match container background */
     height: 1; /* Ensure it aligns with input */
+}
+
+.theme-matrix .prompt-symbol {
+    color: #00ff41;
+    background: #0d0d0d;
+}
+
+.theme-cyberpunk .prompt-symbol {
+    color: #ff0055;
+    background: #000000;
 }
 
 #setup-input {
@@ -84,20 +157,91 @@ Screen {
     padding: 0;
 }
 
+.theme-matrix #setup-input {
+    background: #0d0d0d;
+    color: #00ff41;
+}
+
+.theme-cyberpunk #setup-input {
+    background: #000000;
+    color: #00ff9f;
+}
+
 #setup-input:focus {
     background: #181825;
     border: none;
 }
 
-.model-display {
-    color: #585b70;
-    text-align: left;
-    width: 100%;
+.theme-matrix #setup-input:focus {
+    background: #0d0d0d;
+}
+
+.theme-cyberpunk #setup-input:focus {
+    background: #000000;
+}
+
+/* Suggestions Area */
+#suggestions-area {
+    height: auto;
+    max-height: 10;
+    background: #1e1e2e;
+    margin-bottom: 1;
+    display: none; /* Hidden by default */
+    border: solid #45475a;
+}
+
+.theme-matrix #suggestions-area {
+    background: #000000;
+    border: solid #003b00;
+}
+
+.theme-cyberpunk #suggestions-area {
+    background: #050a0e;
+    border: solid #ff0055;
+}
+
+#suggestions-area.visible {
+    display: block;
+}
+
+.suggestion-label {
+    color: #89b4fa;
     text-style: bold;
+    padding: 0 1;
+    background: #1e1e2e;
+    width: 100%;
+}
+
+.theme-matrix .suggestion-label {
+    color: #00ff41;
+    background: #000000;
+}
+
+.theme-cyberpunk .suggestion-label {
+    color: #ff0055;
+    background: #050a0e;
+}
+
+OptionList {
+    background: #1e1e2e;
+    border: none;
+    height: auto;
+    max-height: 8;
+}
+
+.theme-matrix OptionList {
+    background: #000000;
+}
+
+.theme-cyberpunk OptionList {
+    background: #050a0e;
+}
+
+OptionList:focus {
+    border: none;
 }
 
 /* --- Dashboard Screen --- */
-/* ... (rest remains similar) ... */
 #dashboard-grid {
     layout: grid;
     grid-size: 2 2;
@@ -112,7 +256,17 @@ Screen {
 .panel {
     border: solid #45475a;
     background: #1e1e2e;
-    padding: 1 2;
+    padding: 0; /* Remove default padding, let children handle it */
+}
+
+.theme-matrix .panel {
+    border: solid #003b00;
+    background: #000000;
+}
+
+.theme-cyberpunk .panel {
+    border: solid #ff0055;
+    background: #050a0e;
 }
 
 .panel-title {
@@ -122,12 +276,24 @@ Screen {
     dock: top;
     text-align: center;
     text-style: bold;
+    width: 100%;
+}
+
+.theme-matrix .panel-title {
+    background: #00ff41;
+    color: #000000;
+}
+
+.theme-cyberpunk .panel-title {
+    background: #ff0055;
+    color: #050a0e;
 }
 
 /* Worker Panel */
 #worker-panel {
     row-span: 1;
     column-span: 1;
+    padding: 1 2; /* Add padding back for worker panel specifically */
 }
 
 WorkerStatus {
@@ -135,9 +301,17 @@ WorkerStatus {
     height: auto;
     min-height: 3;
     margin-bottom: 1;
-    border-bottom: solid #313244;
+    border-bottom: solid #11111b;
     align-vertical: middle;
     padding: 0 1;
+}
+
+.theme-matrix WorkerStatus {
+    border-bottom: solid #050505;
+}
+
+.theme-cyberpunk WorkerStatus {
+    border-bottom: solid #020405;
 }
 
 .worker-id {
@@ -146,18 +320,42 @@ WorkerStatus {
     text-style: bold;
 }
 
+.theme-matrix .worker-id {
+    color: #d6ffd6;
+}
+
+.theme-cyberpunk .worker-id {
+    color: #f7ff00;
+}
+
 .worker-action {
     width: 1fr;
-    color: #bac2de;
+    color: #a6adc8;
     padding-right: 1;
+}
+
+.theme-matrix .worker-action {
+    color: #008f11;
+}
+
+.theme-cyberpunk .worker-action {
+    color: #00b8ff;
 }
 
 ProgressBar {
     width: 20;
     color: #a6e3a1;
-    background: #313244;
-    /* bar-color is not standard CSS/TCSS, Textual uses tint or specific component styling */
-    /* For Textual ProgressBar, we style the bar component */
+    background: #11111b;
+}
+
+.theme-matrix ProgressBar {
+    color: #00ff41;
+    background: #050505;
+}
+
+.theme-cyberpunk ProgressBar {
+    color: #00ff9f;
+    background: #020405;
 }
 
 ProgressBar > .bar--bar {
@@ -165,15 +363,34 @@ ProgressBar > .bar--bar {
     background: #a6e3a1;
 }
 
+.theme-matrix ProgressBar > .bar--bar {
+    color: #00ff41;
+    background: #00ff41;
+}
+
+.theme-cyberpunk ProgressBar > .bar--bar {
+    color: #00ff9f;
+    background: #00ff9f;
+}
+
 /* Stats Panel */
 #stats-panel {
     row-span: 1;
     column-span: 1;
+    padding: 1 2; /* Add padding back for stats panel */
 }
 
 Static.stat-item {
     margin-bottom: 1;
-    color: #89dceb;
+    color: #89b4fa;
+}
+
+.theme-matrix Static.stat-item {
+    color: #00ff41;
+}
+
+.theme-cyberpunk Static.stat-item {
+    color: #ff0055;
 }
 
 /* Log Panel */
@@ -181,14 +398,41 @@ Static.stat-item {
     row-span: 1;
     column-span: 2;
     height: 100%;
-    overflow-y: scroll;
     background: #11111b;
     border: solid #45475a;
-    padding: 1;
+    padding: 0; /* Remove padding to allow full-width children */
+    overflow: hidden; /* Ensure content stays within bounds */
 }
 
-Log {
+.theme-matrix #log-panel {
+    background: #050505;
+    border: solid #003b00;
+}
+
+.theme-cyberpunk #log-panel {
+    background: #020405;
+    border: solid #ff0055;
+}
+
+#log-output {
+    width: 100%;
+    height: 1fr;
+    margin-top: 1; /* Account for the docked title */
+    background: #11111b;
     color: #a6adc8;
+    padding: 0 1;
+    scrollbar-size: 1 1;
+    border: none;
+}
+
+.theme-matrix #log-output {
+    background: #050505;
+    color: #008f11;
+}
+
+.theme-cyberpunk #log-output {
+    background: #020405;
+    color: #00b8ff;
 }
 
 /* Agent Activity Overlay/Header */
@@ -202,7 +446,29 @@ Log {
     border-bottom: solid #89b4fa;
 }
 
+.theme-matrix #agent-activity {
+    background: #0d0d0d;
+    color: #00ff41;
+    border-bottom: solid #00ff41;
+}
+
+.theme-cyberpunk #agent-activity {
+    background: #000000;
+    color: #00ff9f;
+    border-bottom: solid #ff0055;
+}
+
 Footer {
     background: #11111b;
     color: #6c7086;
+}
+
+.theme-matrix Footer {
+    background: #050505;
+    color: #003b00;
+}
+
+.theme-cyberpunk Footer {
+    background: #020405;
+    color: #711c91;
 }

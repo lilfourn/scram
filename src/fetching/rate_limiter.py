@@ -15,6 +15,7 @@ class RateLimiter:
 
     async def acquire(self, url: str):
         domain = urlparse(url).netloc
+        sleep_time = 0.0
 
         async with self.lock:
             now = time.time()
@@ -22,14 +23,23 @@ class RateLimiter:
             # Global Rate Limit
             time_since_global = now - self.last_global_request
             if time_since_global < (1.0 / self.global_limit):
-                await asyncio.sleep((1.0 / self.global_limit) - time_since_global)
-                now = time.time()  # Update time after sleep
+                sleep_time = max(
+                    sleep_time, (1.0 / self.global_limit) - time_since_global
+                )
 
             # Domain Rate Limit
             time_since_domain = now - self.last_domain_request[domain]
             if time_since_domain < (1.0 / self.domain_limit):
-                await asyncio.sleep((1.0 / self.domain_limit) - time_since_domain)
-                now = time.time()  # Update time after sleep
+                sleep_time = max(
+                    sleep_time, (1.0 / self.domain_limit) - time_since_domain
+                )
 
-            self.last_global_request = now
-            self.last_domain_request[domain] = now
+            # Reserve the slot by updating times assuming we sleep
+            # This is a slight approximation but prevents race conditions
+            # effectively "booking" the time slot
+            self.last_global_request = now + sleep_time
+            self.last_domain_request[domain] = now + sleep_time
+
+        # Sleep outside the lock
+        if sleep_time > 0:
+            await asyncio.sleep(sleep_time)

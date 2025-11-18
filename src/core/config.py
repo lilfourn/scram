@@ -9,11 +9,14 @@ load_dotenv()
 class Config:
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
     DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "gemini-3-pro-preview")
+    FAST_MODEL = os.getenv("FAST_MODEL", "gemini-2.5-flash")
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
     PROJECT_ROOT = Path(__file__).parent.parent.parent
 
     # Fetching Configuration
-    MAX_CONCURRENCY = int(os.getenv("MAX_CONCURRENCY", "10"))
+    # Enforce upper bounds to prevent DoS via config
+    MAX_CONCURRENCY = min(max(int(os.getenv("MAX_CONCURRENCY", "10")), 1), 50)
+    BATCH_SIZE = min(max(int(os.getenv("BATCH_SIZE", "5")), 1), 20)
     GLOBAL_RATE_LIMIT = float(
         os.getenv("GLOBAL_RATE_LIMIT", "10.0")
     )  # Requests per second
@@ -23,7 +26,7 @@ class Config:
 
     # Browser Configuration
     HEADLESS = os.getenv("HEADLESS", "true").lower() == "true"
-    BROWSER_POOL_SIZE = int(os.getenv("BROWSER_POOL_SIZE", "2"))
+    BROWSER_POOL_SIZE = min(max(int(os.getenv("BROWSER_POOL_SIZE", "2")), 1), 10)
 
     # User Agents (Simple list for rotation)
     USER_AGENTS = [

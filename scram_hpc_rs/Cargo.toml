@@ -1,0 +1,20 @@
+[package]
+name = "scram_hpc_rs"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "scram_hpc_rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.20.0", features = ["extension-module", "abi3-py310"] }
+pyo3-asyncio = { version = "0.20.0", features = ["tokio-runtime"] }
+reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
+tokio = { version = "1", features = ["full"] }
+anyhow = "1.0"
+chromiumoxide = { version = "0.5", features = ["tokio-runtime"] }
+futures = "0.3"
+rand = "0.8"
+ort = { version = "2.0.0-rc.0", features = ["ndarray"] } # ONNX Runtime
+ndarray = "0.15"

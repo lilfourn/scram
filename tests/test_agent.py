@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import AsyncMock, patch
 from src.agent.state import AgentState
 from src.agent.graph import app
 
@@ -34,8 +34,8 @@ async def test_agent_workflow():
 
         mock_gemini.extract_data = AsyncMock(return_value=[{"name": "Test Item"}])
 
-        mock_fetcher._fetch_http = AsyncMock(return_value=("<html>Content</html>", 200))
-        mock_fetcher._should_escalate.return_value = False
+        # Mock fetch method
+        mock_fetcher.fetch = AsyncMock(return_value=("<html>Content</html>", 200, b""))
 
         # Initial State
         initial_state = AgentState(
@@ -44,11 +44,15 @@ async def test_agent_workflow():
             data_schema={},
             url_queue=["http://test.com/1"],
             visited_urls=set(),
+            failed_urls=set(),
             extracted_data=[],
-            current_url=None,
-            current_content=None,
-            is_relevant=False,
-            next_urls=[],
+            current_urls=[],
+            current_contents=[],
+            current_screenshots=[],
+            relevant_flags=[],
+            batch_next_urls=[],
+            template_groups={},
+            optimized_templates=set(),
         )
 
         result = await app.ainvoke(initial_state)

@@ -22,55 +22,15 @@ async def test_rate_limiter():
 
 
 @pytest.mark.asyncio
-async def test_fetching_engine_lifecycle():
-    engine = FetchingEngine()
-
-    # Mock Playwright
-    with patch("src.fetching.engine.async_playwright") as mock_playwright_func:
-        # Setup the mock chain for await async_playwright().start()
-        mock_context_manager = MagicMock()
-        mock_playwright_obj = MagicMock()
-        mock_browser = AsyncMock()
-        mock_context = AsyncMock()
-
-        # async_playwright() returns the context manager
-        mock_playwright_func.return_value = mock_context_manager
-
-        # .start() returns an awaitable that yields the playwright object
-        start_future = asyncio.Future()
-        start_future.set_result(mock_playwright_obj)
-        mock_context_manager.start.return_value = start_future
-
-        # playwright.chromium.launch() needs to be an async method
-        mock_playwright_obj.chromium.launch = AsyncMock(return_value=mock_browser)
-        mock_playwright_obj.stop = AsyncMock()
-
-        # browser.new_context() needs to be an async method
-        mock_browser.new_context = AsyncMock(return_value=mock_context)
-        mock_browser.close = AsyncMock()
-
-        # context.close()
-        mock_context.close = AsyncMock()
-
-        await engine.start()
-        assert engine.active
-        assert len(engine.workers) == config.MAX_CONCURRENCY
-
-        await engine.stop()
-        assert not engine.active
-
-
-@pytest.mark.asyncio
 async def test_fetching_flow_http_success():
     engine = FetchingEngine()
     engine.rate_limiter.acquire = AsyncMock()
 
-    # Mock HTTP fetch
-    with patch("src.fetching.engine.curl_requests.AsyncSession") as mock_session_cls:
-        mock_session = AsyncMock()
-        mock_session.get.return_value.text = "<html>Success</html>"
-        mock_session.get.return_value.status_code = 200
-        mock_session_cls.return_value.__aenter__.return_value = mock_session
+    # Mock HTTP fetch (Rust HPC)
+    with patch(
+        "src.fetching.engine.scram_hpc_rs.fetch_url", new_callable=AsyncMock
+    ) as mock_fetch:
+        mock_fetch.return_value = ("<html>Success</html>", 200)
 
         # We don't start the full engine, just test the worker logic or internal methods
         # But to test worker, we need to start it.
@@ -78,6 +38,28 @@ async def test_fetching_flow_http_success():
         content, status = await engine._fetch_http("http://example.com")
         assert status == 200
         assert content == "<html>Success</html>"
+
+
+@pytest.mark.asyncio
+async def test_fetching_flow_browser_success():
+    engine = FetchingEngine()
+    engine.rate_limiter.acquire = AsyncMock()
+
+    # Mock Browser fetch (Rust Mirage)
+    with patch(
+        "src.fetching.engine.scram_hpc_rs.fetch_browser", new_callable=AsyncMock
+    ) as mock_fetch:
+        # Return tuple with screenshot bytes
+        mock_fetch.return_value = (
+            "<html>Browser Success</html>",
+            200,
+            b"fake_screenshot",
+        )
+
+        content, status, screenshot = await engine._fetch_browser("http://example.com")
+        assert status == 200
+        assert content == "<html>Browser Success</html>"
+        assert screenshot == b"fake_screenshot"
 
 
 @pytest.mark.asyncio

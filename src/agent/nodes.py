@@ -231,6 +231,12 @@ async def relevance_analyzer_node(state: AgentState) -> Dict[str, Any]:
                 state["objective"], analysis_content, url
             )
 
+            # Determine relevance based on score > 60
+            score = analysis.get("relevance_score", 0)
+            analysis["is_relevant"] = score > 60
+            if analysis["is_relevant"]:
+                logger.info(f"Page {url} is relevant (Score: {score})")
+
             # API Endpoint Discovery (use full content or truncated, but not summary)
             # We use the original content for this as it looks for specific patterns
             api_endpoints = await gemini_client.analyze_api_endpoints(content, url)

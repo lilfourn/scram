@@ -122,13 +122,13 @@ def get_relevance_analysis_prompt(objective: str, content: str, url: str) -> str
         {content[:5000]}... (truncated)
         </content_snippet>
         
-        1. Is this page relevant to the objective? (true/false)
+        1. Analyze if this page is relevant to the objective. Assign a relevance score from 0 to 100.
         2. If relevant, explain why briefly.
         3. Identify up to 5 most relevant links to follow next.
         
         Return JSON format:
         {{
-            "is_relevant": boolean,
+            "relevance_score": integer,
             "reason": "string",
             "next_urls": ["url1", "url2"]
         }}

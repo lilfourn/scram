@@ -216,13 +216,13 @@ class GeminiClient:
                 )
             except Exception as e2:
                 logger.error(f"Fallback relevance analysis failed: {e2}")
-                return {"is_relevant": False, "reason": "Error", "next_urls": []}
+                return {"relevance_score": 0, "reason": "Error", "next_urls": []}
 
         try:
             cleaned_text = self._clean_json_response(response_text)
             return json.loads(cleaned_text)
         except Exception:
-            return {"is_relevant": False, "reason": "Error", "next_urls": []}
+            return {"relevance_score": 0, "reason": "Error", "next_urls": []}
 
     async def analyze_api_endpoints(self, content: str, url: str) -> List[str]:
         """

@@ -32,6 +32,8 @@ async def test_agent_workflow():
             ]
         )
 
+        mock_gemini.analyze_api_endpoints = AsyncMock(return_value=[])
+
         mock_gemini.extract_data = AsyncMock(return_value=[{"name": "Test Item"}])
 
         # Mock fetch method
@@ -53,6 +55,8 @@ async def test_agent_workflow():
             batch_next_urls=[],
             template_groups={},
             optimized_templates=set(),
+            compressed_history="",
+            recent_activity=[],
         )
 
         result = await app.ainvoke(initial_state)

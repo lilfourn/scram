@@ -16,3 +16,5 @@ class AgentState(TypedDict):
     batch_next_urls: List[List[str]]
     template_groups: Dict[str, List[str]]  # Template ID -> List of URLs
     optimized_templates: Set[str]  # Set of Template IDs that are optimized
+    compressed_history: str  # AI-generated summary of the session so far
+    recent_activity: List[str]  # Log of recent actions to be compressed

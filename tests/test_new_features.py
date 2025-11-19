@@ -45,6 +45,7 @@ async def test_relevance_node_generates_title():
         mock_gemini.analyze_relevance = AsyncMock(
             return_value={"is_relevant": True, "reason": "Relevant", "next_urls": []}
         )
+        mock_gemini.analyze_api_endpoints = AsyncMock(return_value=[])
         mock_gemini.generate_title = AsyncMock(return_value="Generated Title")
 
         state = AgentState(
@@ -53,6 +54,7 @@ async def test_relevance_node_generates_title():
             data_schema={},
             url_queue=[],
             visited_urls=set(),
+            failed_urls=set(),
             extracted_data=[],
             current_urls=["http://test.com"],
             current_contents=["Content"],
@@ -61,6 +63,8 @@ async def test_relevance_node_generates_title():
             batch_next_urls=[],
             template_groups={},
             optimized_templates=set(),
+            compressed_history="",
+            recent_activity=[],
         )
 
         updates = await relevance_analyzer_node(state)
@@ -77,6 +81,7 @@ async def test_relevance_node_skips_title_if_already_set():
         mock_gemini.analyze_relevance = AsyncMock(
             return_value={"is_relevant": True, "reason": "Relevant", "next_urls": []}
         )
+        mock_gemini.analyze_api_endpoints = AsyncMock(return_value=[])
 
         state = AgentState(
             session_title="Existing Title",
@@ -84,6 +89,7 @@ async def test_relevance_node_skips_title_if_already_set():
             data_schema={},
             url_queue=[],
             visited_urls=set(),
+            failed_urls=set(),
             extracted_data=[],
             current_urls=["http://test.com"],
             current_contents=["Content"],
@@ -92,6 +98,8 @@ async def test_relevance_node_skips_title_if_already_set():
             batch_next_urls=[],
             template_groups={},
             optimized_templates=set(),
+            compressed_history="",
+            recent_activity=[],
         )
 
         updates = await relevance_analyzer_node(state)

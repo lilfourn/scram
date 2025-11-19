@@ -37,4 +37,6 @@ scram.log
 
 # Rust
 target/
-**/*.rs.bk
+
+# Data
+scram_data/

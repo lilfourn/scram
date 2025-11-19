@@ -138,6 +138,36 @@ class GeminiClient:
                     pass
             return {"is_relevant": False, "reason": "Error", "next_urls": []}
 
+    async def analyze_api_endpoints(self, content: str, url: str) -> List[str]:
+        """
+        Analyze page content to find potential API endpoints.
+        """
+        prompt = f"""
+        You are an expert web scraper. Analyze the following HTML content and identify any potential JSON API endpoints that might contain data relevant to the page's main content.
+        Look for:
+        - URLs in `fetch()` or `axios` calls in scripts.
+        - URLs in `data-api-url` or similar attributes.
+        - Links ending in `.json`.
+        - URLs containing `/api/`, `/v1/`, `/graphql`.
+
+        Return a JSON object with a single key "api_endpoints" containing a list of absolute URLs.
+        If no endpoints are found, return an empty list.
+
+        Base URL: {url}
+        Content (truncated):
+        {content[:50000]}
+        """
+
+        response = None
+        try:
+            response = await self.fast_model.generate_content_async(prompt)
+            cleaned_text = self._clean_json_response(response.text)
+            result = json.loads(cleaned_text)
+            return result.get("api_endpoints", [])
+        except Exception as e:
+            logger.error(f"API endpoint analysis failed: {e}")
+            return []
+
     async def extract_data(
         self, content: str, schema: Dict[str, Any], screenshot: bytes = b""
     ) -> List[Dict[str, Any]]:

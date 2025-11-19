@@ -39,6 +39,8 @@ async def test_crawl_manager_batching():
         batch_next_urls=[],
         template_groups={},
         optimized_templates=set(),
+        compressed_history="",
+        recent_activity=[],
     )
 
     # Should pop 5 (BATCH_SIZE)
@@ -75,6 +77,8 @@ async def test_fetcher_node_parallel():
         ],
         template_groups={},
         optimized_templates=set(),
+        compressed_history="",
+        recent_activity=[],
     )
 
     with patch("src.agent.nodes.fetching_engine") as mock_engine:
@@ -107,6 +111,8 @@ async def test_relevance_analyzer_parallel():
         batch_next_urls=[],
         template_groups={},
         optimized_templates=set(),
+        compressed_history="",
+        recent_activity=[],
     )
 
     with patch("src.agent.nodes.gemini_client") as mock_client:
@@ -116,6 +122,7 @@ async def test_relevance_analyzer_parallel():
                 {"is_relevant": False, "next_urls": []},
             ]
         )
+        mock_client.analyze_api_endpoints = AsyncMock(return_value=[])
 
         result = await relevance_analyzer_node(state)
 
@@ -150,6 +157,8 @@ async def test_refinement_node_flattening():
         ],
         template_groups={},
         optimized_templates=set(),
+        compressed_history="",
+        recent_activity=[],
     )
 
     result = await refinement_node(state)

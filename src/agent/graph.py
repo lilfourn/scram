@@ -10,6 +10,7 @@ from src.agent.nodes import (
     finalization_node,
     healing_node,
     rust_execution_node,
+    compression_node,
 )
 
 
@@ -45,6 +46,7 @@ workflow.add_node("crawl_manager", crawl_manager_node)
 workflow.add_node("fetcher", fetcher_node)
 workflow.add_node("relevance_analyzer", relevance_analyzer_node)
 workflow.add_node("queue_updater", refinement_node)  # Using refinement_node logic
+workflow.add_node("compression", compression_node)
 workflow.add_node("extractor", extractor_node)
 workflow.add_node("rust_execution", rust_execution_node)
 workflow.add_node("healing", healing_node)
@@ -65,10 +67,11 @@ workflow.add_conditional_edges(
 
 workflow.add_edge("fetcher", "relevance_analyzer")
 workflow.add_edge("relevance_analyzer", "queue_updater")
+workflow.add_edge("queue_updater", "compression")
 
-# Conditional Edge from QueueUpdater (was Refinement)
+# Conditional Edge from Compression (was QueueUpdater)
 workflow.add_conditional_edges(
-    "queue_updater",
+    "compression",
     should_extract,
     {
         "extractor": "extractor",

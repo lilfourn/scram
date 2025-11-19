@@ -18,10 +18,11 @@ Screen {
 }
 
 /* --- Setup Screen --- */
+/* (Keeping existing setup styles as they work well) */
 
 #setup-container {
     width: 80%;
-    height: 80%; /* Increased height to fit commands */
+    height: 80%;
     border: solid #585b70;
     background: #1e1e2e;
     padding: 2 4;
@@ -47,13 +48,8 @@ Screen {
     width: 100%;
 }
 
-.theme-matrix .logo {
-    color: #00ff41;
-}
-
-.theme-cyberpunk .logo {
-    color: #ff0055;
-}
+.theme-matrix .logo { color: #00ff41; }
+.theme-cyberpunk .logo { color: #ff0055; }
 
 .version {
     color: #585b70;
@@ -62,13 +58,8 @@ Screen {
     width: 100%;
 }
 
-.theme-matrix .version {
-    color: #008f11;
-}
-
-.theme-cyberpunk .version {
-    color: #00b8ff;
-}
+.theme-matrix .version { color: #008f11; }
+.theme-cyberpunk .version { color: #00b8ff; }
 
 .commands {
     color: #a6adc8;
@@ -77,13 +68,8 @@ Screen {
     width: 100%;
 }
 
-.theme-matrix .commands {
-    color: #008f11;
-}
-
-.theme-cyberpunk .commands {
-    color: #00b8ff;
-}
+.theme-matrix .commands { color: #008f11; }
+.theme-cyberpunk .commands { color: #00b8ff; }
 
 #history-area {
     height: 1fr;
@@ -98,24 +84,19 @@ Screen {
     width: 100%;
 }
 
-.theme-matrix .history-item {
-    color: #003b00;
-}
-
-.theme-cyberpunk .history-item {
-    color: #711c91;
-}
+.theme-matrix .history-item { color: #003b00; }
+.theme-cyberpunk .history-item { color: #711c91; }
 
 /* Input Bar Area */
 #input-area {
     height: auto;
     min-height: 3;
-    background: #181825; /* Darker background */
+    background: #181825;
     padding: 0 1;
     align-vertical: middle;
     margin-top: 1;
     margin-bottom: 1;
-    border-left: solid #89b4fa; /* Accent on the left */
+    border-left: solid #89b4fa;
     layout: horizontal;
 }
 
@@ -134,8 +115,8 @@ Screen {
     text-style: bold;
     padding-right: 1;
     width: auto;
-    background: #181825; /* Match container background */
-    height: 1; /* Ensure it aligns with input */
+    background: #181825;
+    height: 1;
 }
 
 .theme-matrix .prompt-symbol {
@@ -149,7 +130,7 @@ Screen {
 }
 
 #setup-input {
-    background: #181825; /* Match container background */
+    background: #181825;
     border: none;
     color: #cdd6f4;
     width: 1fr;
@@ -172,13 +153,8 @@ Screen {
     border: none;
 }
 
-.theme-matrix #setup-input:focus {
-    background: #0d0d0d;
-}
-
-.theme-cyberpunk #setup-input:focus {
-    background: #000000;
-}
+.theme-matrix #setup-input:focus { background: #0d0d0d; }
+.theme-cyberpunk #setup-input:focus { background: #000000; }
 
 /* Suggestions Area */
 #suggestions-area {
@@ -186,7 +162,7 @@ Screen {
     max-height: 10;
     background: #1e1e2e;
     margin-bottom: 1;
-    display: none; /* Hidden by default */
+    display: none;
     border: solid #45475a;
 }
 
@@ -229,199 +205,222 @@ OptionList {
     max-height: 8;
 }
 
-.theme-matrix OptionList {
-    background: #000000;
-}
-
-.theme-cyberpunk OptionList {
-    background: #050a0e;
-}
+.theme-matrix OptionList { background: #000000; }
+.theme-cyberpunk OptionList { background: #050a0e; }
 
 OptionList:focus {
     border: none;
 }
 
-/* --- Dashboard Screen --- */
-#dashboard-grid {
-    layout: grid;
-    grid-size: 2 2;
-    grid-columns: 2fr 1fr;
-    grid-rows: 1fr 2fr;
-    height: 100%;
-    margin: 2;
-    grid-gutter: 1;
+.hidden {
+    display: none;
 }
 
-/* Panels */
-.panel {
+#loading-indicator {
+    height: 1;
+    color: #89b4fa;
+    background: #181825;
+}
+
+.theme-matrix #loading-indicator {
+    color: #00ff41;
+    background: #0d0d0d;
+}
+
+.theme-cyberpunk #loading-indicator {
+    color: #ff0055;
+    background: #000000;
+}
+
+/* --- Dashboard Screen (New Layout) --- */
+
+#dashboard-container {
+    layout: vertical;
+    padding: 1 2;
+    height: 100%;
+}
+
+/* Status Card */
+.status-card {
+    layout: vertical;
+    height: auto;
+    min-height: 5;
+    background: #181825;
+    border: solid #89b4fa;
+    margin-bottom: 1;
+    padding: 1 0;
+    align: center middle;
+}
+
+.theme-matrix .status-card {
+    background: #0d0d0d;
+    border: solid #00ff41;
+}
+
+.theme-cyberpunk .status-card {
+    background: #000000;
+    border: solid #ff0055;
+}
+
+#main-status {
+    text-style: bold;
+    text-align: center;
+    width: 100%;
+    color: #cdd6f4;
+    margin-bottom: 1;
+    padding: 0 2;
+}
+
+.theme-matrix #main-status { color: #00ff41; }
+.theme-cyberpunk #main-status { color: #00ff9f; }
+
+#activity-pulse {
+    width: 100%;
+    height: 1;
+    color: #89b4fa;
+    background: #1e1e2e;
+}
+
+.theme-matrix #activity-pulse {
+    color: #00ff41;
+    background: #000000;
+}
+
+.theme-cyberpunk #activity-pulse {
+    color: #ff0055;
+    background: #050a0e;
+}
+
+#activity-pulse > .bar--bar {
+    color: #89b4fa;
+    background: #89b4fa;
+}
+
+.theme-matrix #activity-pulse > .bar--bar {
+    color: #00ff41;
+    background: #00ff41;
+}
+
+.theme-cyberpunk #activity-pulse > .bar--bar {
+    color: #ff0055;
+    background: #ff0055;
+}
+
+/* Metrics Row */
+.metrics-row {
+    height: auto;
+    margin-bottom: 1;
+    align: center middle;
+}
+
+.metric-item {
+    width: 1fr;
+    height: auto;
+    align: center middle;
+    border-right: solid #45475a;
+}
+
+.metric-item:last-of-type {
+    border-right: none;
+}
+
+.theme-matrix .metric-item { border-right: solid #003b00; }
+.theme-cyberpunk .metric-item { border-right: solid #ff0055; }
+
+.metric-label {
+    color: #a6adc8;
+    text-align: center;
+}
+
+.theme-matrix .metric-label { color: #008f11; }
+.theme-cyberpunk .metric-label { color: #00b8ff; }
+
+.metric-value {
+    color: #89b4fa;
+    text-style: bold;
+    text-align: center;
+}
+
+.theme-matrix .metric-value { color: #00ff41; }
+.theme-cyberpunk .metric-value { color: #f7ff00; }
+
+/* Activity Feed */
+.activity-container {
+    height: 1fr;
     border: solid #45475a;
     background: #1e1e2e;
-    padding: 0; /* Remove default padding, let children handle it */
+    margin-bottom: 1;
 }
 
-.theme-matrix .panel {
+.theme-matrix .activity-container {
     border: solid #003b00;
     background: #000000;
 }
 
-.theme-cyberpunk .panel {
+.theme-cyberpunk .activity-container {
     border: solid #ff0055;
     background: #050a0e;
 }
 
-.panel-title {
-    background: #89b4fa;
-    color: #1e1e2e;
+.section-title {
+    background: #45475a;
+    color: #cdd6f4;
     padding: 0 1;
     dock: top;
-    text-align: center;
-    text-style: bold;
     width: 100%;
 }
 
-.theme-matrix .panel-title {
-    background: #00ff41;
+.theme-matrix .section-title {
+    background: #003b00;
+    color: #00ff41;
+}
+
+.theme-cyberpunk .section-title {
+    background: #ff0055;
     color: #000000;
 }
 
-.theme-cyberpunk .panel-title {
-    background: #ff0055;
-    color: #050a0e;
-}
-
-/* Worker Panel */
-#worker-panel {
-    row-span: 1;
-    column-span: 1;
-    padding: 1 2; /* Add padding back for worker panel specifically */
-}
-
-WorkerStatus {
-    layout: horizontal;
-    height: auto;
-    min-height: 3;
-    margin-bottom: 1;
-    border-bottom: solid #11111b;
-    align-vertical: middle;
+#activity-feed {
+    background: #1e1e2e;
+    color: #cdd6f4;
     padding: 0 1;
+    height: 1fr;
+    border: none;
 }
 
-.theme-matrix WorkerStatus {
-    border-bottom: solid #050505;
-}
-
-.theme-cyberpunk WorkerStatus {
-    border-bottom: solid #020405;
-}
-
-.worker-id {
-    width: 10;
-    color: #cba6f7;
-    text-style: bold;
-}
-
-.theme-matrix .worker-id {
-    color: #d6ffd6;
-}
-
-.theme-cyberpunk .worker-id {
-    color: #f7ff00;
-}
-
-.worker-action {
-    width: 1fr;
-    color: #a6adc8;
-    padding-right: 1;
-}
-
-.theme-matrix .worker-action {
-    color: #008f11;
-}
-
-.theme-cyberpunk .worker-action {
-    color: #00b8ff;
-}
-
-ProgressBar {
-    width: 20;
-    color: #a6e3a1;
-    background: #11111b;
-}
-
-.theme-matrix ProgressBar {
+.theme-matrix #activity-feed {
+    background: #000000;
     color: #00ff41;
-    background: #050505;
 }
 
-.theme-cyberpunk ProgressBar {
+.theme-cyberpunk #activity-feed {
+    background: #050a0e;
     color: #00ff9f;
-    background: #020405;
 }
 
-ProgressBar > .bar--bar {
-    color: #a6e3a1;
-    background: #a6e3a1;
-}
-
-.theme-matrix ProgressBar > .bar--bar {
-    color: #00ff41;
-    background: #00ff41;
-}
-
-.theme-cyberpunk ProgressBar > .bar--bar {
-    color: #00ff9f;
-    background: #00ff9f;
-}
-
-/* Stats Panel */
-#stats-panel {
-    row-span: 1;
-    column-span: 1;
-    padding: 1 2; /* Add padding back for stats panel */
-}
-
-Static.stat-item {
-    margin-bottom: 1;
-    color: #89b4fa;
-}
-
-.theme-matrix Static.stat-item {
-    color: #00ff41;
-}
-
-.theme-cyberpunk Static.stat-item {
-    color: #ff0055;
-}
-
-/* Log Panel */
-#log-panel {
-    row-span: 1;
-    column-span: 2;
-    height: 100%;
-    background: #11111b;
+/* Logs Container (Secondary) */
+.logs-container {
+    height: 10; /* Fixed small height */
     border: solid #45475a;
-    padding: 0; /* Remove padding to allow full-width children */
-    overflow: hidden; /* Ensure content stays within bounds */
+    background: #11111b;
+    overflow: hidden; /* Ensure content doesn't spill out */
 }
 
-.theme-matrix #log-panel {
-    background: #050505;
+.theme-matrix .logs-container {
     border: solid #003b00;
+    background: #050505;
 }
 
-.theme-cyberpunk #log-panel {
-    background: #020405;
+.theme-cyberpunk .logs-container {
     border: solid #ff0055;
+    background: #020405;
 }
 
 #log-output {
-    width: 100%;
-    height: 1fr;
-    margin-top: 1; /* Account for the docked title */
     background: #11111b;
     color: #a6adc8;
     padding: 0 1;
-    scrollbar-size: 1 1;
+    height: 1fr;
     border: none;
 }
 
@@ -435,29 +434,7 @@ Static.stat-item {
     color: #00b8ff;
 }
 
-/* Agent Activity Overlay/Header */
-#agent-activity {
-    dock: top;
-    height: 3;
-    background: #181825;
-    color: #cdd6f4;
-    content-align: center middle;
-    text-style: bold;
-    border-bottom: solid #89b4fa;
-}
-
-.theme-matrix #agent-activity {
-    background: #0d0d0d;
-    color: #00ff41;
-    border-bottom: solid #00ff41;
-}
-
-.theme-cyberpunk #agent-activity {
-    background: #000000;
-    color: #00ff9f;
-    border-bottom: solid #ff0055;
-}
-
+/* Footer */
 Footer {
     background: #11111b;
     color: #6c7086;

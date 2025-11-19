@@ -5,6 +5,7 @@ from typing import Dict, Any, List
 from src.agent.state import AgentState
 from src.fetching.engine import FetchingEngine
 from src.ai.gemini import GeminiClient
+from src.ai.compression import ContextCompressor
 from src.core.events import event_bus
 from src.data.export import exporter
 
@@ -13,6 +14,7 @@ logger = logging.getLogger(__name__)
 # Global instances (to be initialized in main or graph setup)
 fetching_engine = FetchingEngine()
 gemini_client = GeminiClient()
+context_compressor = ContextCompressor(gemini_client)
 
 
 async def initialization_node(state: AgentState) -> Dict[str, Any]:
@@ -20,7 +22,10 @@ async def initialization_node(state: AgentState) -> Dict[str, Any]:
     logger.info(f"Initializing session: {state['session_title']}")
     event_bus.publish("agent_activity", status="Initializing Session")
 
-    updates = {}
+    updates = {
+        "compressed_history": "Session started.",
+        "recent_activity": [],
+    }
 
     if not state.get("data_schema"):
         logger.info("Generating schema from objective...")
@@ -52,59 +57,75 @@ async def initialization_node(state: AgentState) -> Dict[str, Any]:
 
 async def crawl_manager_node(state: AgentState) -> Dict[str, Any]:
     """Select the next batch of URLs to crawl."""
-    event_bus.publish("agent_activity", status="Managing Queue")
+    try:
+        event_bus.publish("agent_activity", status="Managing Queue")
 
-    queue = state.get("url_queue", [])
-    visited = state.get("visited_urls", set())
+        queue = state.get("url_queue", [])
+        visited = state.get("visited_urls", set())
 
-    if not queue:
-        logger.info("Queue is empty.")
+        # Update Queue Size Stat
+        event_bus.publish("stats_update", metric="queue_size", value=len(queue))
+
+        if not queue:
+            logger.info("Queue is empty.")
+            return {"current_urls": []}
+
+        # Batch size
+        from src.core.config import config
+
+        BATCH_SIZE = config.BATCH_SIZE
+        batch_urls = []
+
+        # Pop up to BATCH_SIZE unique unvisited URLs
+
+        while queue and len(batch_urls) < BATCH_SIZE:
+            next_url = queue.pop(0)
+            if next_url not in visited and next_url not in batch_urls:
+                batch_urls.append(next_url)
+
+        if not batch_urls:
+            # If we drained the queue but found only visited links
+            if queue:
+                return await crawl_manager_node(state)
+            return {"current_urls": []}
+
+        # Template Detection Logic
+        # Group URLs by domain/path structure
+        # For MVP, we just use the domain as the template ID
+        from urllib.parse import urlparse
+
+        template_groups = state.get("template_groups", {})
+
+        for url in batch_urls:
+            try:
+                domain = urlparse(url).netloc
+                if domain not in template_groups:
+                    template_groups[domain] = []
+                template_groups[domain].append(url)
+            except Exception:
+                pass
+
+        # Check for optimization triggers (e.g. > 10 successful extractions for a template)
+        # This would set optimized_templates in state
+
+        logger.info(f"Selected batch of {len(batch_urls)} URLs")
+
+        # Update recent activity
+        recent_activity = state.get("recent_activity", [])
+        recent_activity.append(
+            f"Crawling batch of {len(batch_urls)} URLs: {batch_urls}"
+        )
+
+        return {
+            "current_urls": batch_urls,
+            "url_queue": queue,
+            "template_groups": template_groups,
+            "recent_activity": recent_activity,
+        }
+    except Exception as e:
+        logger.error(f"Error in crawl_manager_node: {e}")
+        # Return empty current_urls to stop or proceed to finalization safely
         return {"current_urls": []}
-
-    # Batch size
-    from src.core.config import config
-
-    BATCH_SIZE = config.BATCH_SIZE
-    batch_urls = []
-
-    # Pop up to BATCH_SIZE unique unvisited URLs
-
-    while queue and len(batch_urls) < BATCH_SIZE:
-        next_url = queue.pop(0)
-        if next_url not in visited and next_url not in batch_urls:
-            batch_urls.append(next_url)
-
-    if not batch_urls:
-        # If we drained the queue but found only visited links
-        if queue:
-            return await crawl_manager_node(state)
-        return {"current_urls": []}
-
-    # Template Detection Logic
-    # Group URLs by domain/path structure
-    # For MVP, we just use the domain as the template ID
-    from urllib.parse import urlparse
-
-    template_groups = state.get("template_groups", {})
-
-    for url in batch_urls:
-        try:
-            domain = urlparse(url).netloc
-            if domain not in template_groups:
-                template_groups[domain] = []
-            template_groups[domain].append(url)
-        except Exception:
-            pass
-
-    # Check for optimization triggers (e.g. > 10 successful extractions for a template)
-    # This would set optimized_templates in state
-
-    logger.info(f"Selected batch of {len(batch_urls)} URLs")
-    return {
-        "current_urls": batch_urls,
-        "url_queue": queue,
-        "template_groups": template_groups,
-    }
 
 
 async def fetcher_node(state: AgentState) -> Dict[str, Any]:
@@ -195,9 +216,30 @@ async def relevance_analyzer_node(state: AgentState) -> Dict[str, Any]:
         )
 
         try:
+            # Observation Compression
+            # If content is large, compress it for relevance analysis
+            analysis_content = content
+            if len(content) > 20000:
+                analysis_content = await context_compressor.compress_observation(
+                    content, state["objective"]
+                )
+                logger.info(
+                    f"Compressed content for {url}: {len(content)} -> {len(analysis_content)}"
+                )
+
             analysis = await gemini_client.analyze_relevance(
-                state["objective"], content, url
+                state["objective"], analysis_content, url
             )
+
+            # API Endpoint Discovery (use full content or truncated, but not summary)
+            # We use the original content for this as it looks for specific patterns
+            api_endpoints = await gemini_client.analyze_api_endpoints(content, url)
+            if api_endpoints:
+                logger.info(f"Discovered {len(api_endpoints)} API endpoints on {url}")
+                # Add API endpoints to next_urls
+                current_next_urls = analysis.get("next_urls", [])
+                analysis["next_urls"] = list(set(current_next_urls + api_endpoints))
+
             return analysis
         except Exception as e:
             logger.error(f"Error analyzing {url}: {e}")
@@ -376,36 +418,61 @@ async def finalization_node(state: AgentState) -> Dict[str, Any]:
     event_bus.publish("agent_activity", status="Finalizing Session")
     logger.info("Finalizing session...")
 
-    # Run export in a thread pool to avoid blocking the async loop
-    # since pandas operations can be heavy
-    await asyncio.to_thread(exporter.finalize_session, state["session_title"])
+    # Run export (now async with semantic deduplication)
+    await exporter.finalize_session(state["session_title"])
 
     event_bus.publish("agent_activity", status="Session Complete")
     return {}
 
 
+async def compression_node(state: AgentState) -> Dict[str, Any]:
+    """Compress history if recent activity is too long."""
+    recent_activity = state.get("recent_activity", [])
+    compressed_history = state.get("compressed_history", "")
+
+    if len(recent_activity) >= 5:
+        logger.info("Compressing history...")
+        event_bus.publish("agent_activity", status="Compressing Context (AI)")
+
+        new_summary = await context_compressor.compress_history(
+            recent_activity, compressed_history
+        )
+
+        return {
+            "compressed_history": new_summary,
+            "recent_activity": [],
+        }
+
+    return {}
+
+
 async def refinement_node(state: AgentState) -> Dict[str, Any]:
     """Add new URLs to the queue from the batch."""
-    batch_next_urls = state.get("batch_next_urls", [])
-    current_queue = state.get("url_queue", [])
-    visited = state.get("visited_urls", set())
+    try:
+        batch_next_urls = state.get("batch_next_urls", [])
+        current_queue = state.get("url_queue", [])
+        visited = state.get("visited_urls", set())
 
-    # Flatten the list of lists
-    all_new_urls = []
-    for url_list in batch_next_urls:
-        all_new_urls.extend(url_list)
+        # Flatten the list of lists
+        all_new_urls = []
+        for url_list in batch_next_urls:
+            all_new_urls.extend(url_list)
 
-    # Filter duplicates and visited
-    unique_new_urls = []
-    for url in all_new_urls:
-        if (
-            url not in visited
-            and url not in current_queue
-            and url not in unique_new_urls
-        ):
-            unique_new_urls.append(url)
+        # Filter duplicates and visited
+        unique_new_urls = []
+        for url in all_new_urls:
+            if (
+                url not in visited
+                and url not in current_queue
+                and url not in unique_new_urls
+            ):
+                unique_new_urls.append(url)
 
-    if unique_new_urls:
-        logger.info(f"Adding {len(unique_new_urls)} new URLs to queue.")
+        if unique_new_urls:
+            logger.info(f"Adding {len(unique_new_urls)} new URLs to queue.")
 
-    return {"url_queue": current_queue + unique_new_urls}
+        return {"url_queue": current_queue + unique_new_urls}
+    except Exception as e:
+        logger.error(f"Error in refinement_node: {e}")
+        # Return existing queue to continue
+        return {"url_queue": state.get("url_queue", [])}

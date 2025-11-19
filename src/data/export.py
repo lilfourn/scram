@@ -4,7 +4,7 @@ import json
 import logging
 import sqlite3
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
@@ -51,7 +51,7 @@ class DataExporter:
         self,
         session_title: str,
         data: List[Dict[str, Any]],
-        screenshots: List[bytes] = None,
+        screenshots: Optional[List[bytes]] = None,
     ):
         """Save a batch of data to raw storage (JSONL/CSV) immediately."""
         if not data:
@@ -127,7 +127,34 @@ class DataExporter:
         except Exception as e:
             logger.error(f"Failed to save raw CSV: {e}")
 
-    def finalize_session(self, session_title: str):
+    def _export_structural_compressed(self, df: pd.DataFrame, filepath: str):
+        """
+        Export data in a structurally compressed format.
+        Separates schema (keys) from data (values) to reduce redundancy.
+        """
+        if df.empty:
+            return
+
+        # Identify columns
+        columns = list(df.columns)
+
+        # Extract values as list of lists
+        # Handle NaN/None by converting to None (which becomes null in JSON)
+        data_values = df.where(pd.notnull(df), None).values.tolist()
+
+        compressed_payload = {
+            "schema": {
+                "columns": columns,
+                "types": [str(df[col].dtype) for col in columns],
+            },
+            "data": data_values,
+            "metadata": {"count": len(df), "compression": "structural-anchor"},
+        }
+
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(compressed_payload, f, separators=(",", ":"))
+
+    async def finalize_session(self, session_title: str):
         """Read raw data, deduplicate, normalize, and export to all formats."""
         session_dir = self._get_session_dir(session_title)
         raw_jsonl = session_dir / "data" / "raw_data.jsonl"
@@ -140,6 +167,7 @@ class DataExporter:
 
         # Load Data
         try:
+            # Use pandas to read JSONL
             df = pd.read_json(raw_jsonl, lines=True)
         except ValueError as e:
             logger.error(f"Failed to read JSONL data for finalization: {e}")
@@ -150,14 +178,9 @@ class DataExporter:
             return
 
         # Deduplicate
-        # If 'url' column exists, use it as a key. Otherwise, drop exact duplicates.
         initial_count = len(df)
 
-        # Handle unhashable types (like dicts in _metadata) before deduplication
-        # We can convert dict columns to strings for the purpose of deduplication if needed,
-        # or just exclude them from the subset if we are doing exact match.
-
-        # If we have a primary key like 'url' or 'id', use that.
+        # 1. Exact Deduplication
         subset = None
         if "url" in df.columns:
             subset = ["url"]
@@ -168,31 +191,37 @@ class DataExporter:
             if subset:
                 df = df.drop_duplicates(subset=subset)
             else:
-                # If no clear key, we try to drop duplicates based on all columns.
-                # But if we have dicts (like _metadata), this fails.
-                # We can try to drop duplicates based on columns that are hashable.
-
-                # Identify hashable columns
-                hashable_cols = []
-                for col in df.columns:
-                    # Check first non-null value to see if it's a dict/list
-                    sample = (
-                        df[col].dropna().iloc[0] if not df[col].dropna().empty else None
+                # Fallback exact match on hashable columns
+                hashable_cols = [
+                    col
+                    for col in df.columns
+                    if not isinstance(
+                        df[col].iloc[0] if not df[col].empty else None, (dict, list)
                     )
-                    if not isinstance(sample, (dict, list)):
-                        hashable_cols.append(col)
-
+                ]
                 if hashable_cols:
                     df = df.drop_duplicates(subset=hashable_cols)
                 else:
-                    # Fallback: Convert to string to deduplicate
-                    # This is expensive but safe
                     df = df.loc[df.astype(str).drop_duplicates().index]
-
         except Exception as e:
-            logger.warning(f"Deduplication failed: {e}. Proceeding with raw data.")
+            logger.warning(f"Exact deduplication failed: {e}")
 
-        logger.info(f"Deduplication: {initial_count} -> {len(df)} items")
+        # 2. Semantic Deduplication
+        # Convert DF to list of dicts for processing
+        data_list = df.to_dict(orient="records")
+
+        try:
+            from src.ai.embeddings import embedding_engine
+
+            # Only run if we have a reasonable number of items to avoid huge costs/time
+            if len(data_list) < 1000:
+                data_list = await embedding_engine.deduplicate_semantically(data_list)
+                # Recreate DataFrame
+                df = pd.DataFrame(data_list)
+        except Exception as e:
+            logger.error(f"Semantic deduplication failed: {e}")
+
+        logger.info(f"Final Count: {initial_count} -> {len(df)} items")
 
         # Export Paths
         export_base = session_dir / "data" / "clean_data"
@@ -209,19 +238,42 @@ class DataExporter:
         except Exception as e:
             logger.error(f"Failed to export clean CSV: {e}")
 
-        # 3. Parquet
+        # 3. Parquet (Compressed)
         try:
-            df.to_parquet(str(export_base) + ".parquet")
+            df.to_parquet(str(export_base) + ".parquet", compression="zstd")
         except ImportError:
             logger.warning("PyArrow not installed. Skipping Parquet export.")
         except Exception as e:
             logger.error(f"Parquet export failed: {e}")
 
-        # 4. SQLite
+        # 4. Structural-Anchor Compression (Schema-Data JSON)
+        try:
+            self._export_structural_compressed(
+                df, str(export_base) + "_compressed.json"
+            )
+        except Exception as e:
+            logger.error(f"Structural compression export failed: {e}")
+
+        # 5. SQLite
         try:
             db_path = session_dir / "data" / "database.sqlite"
             conn = sqlite3.connect(db_path)
-            df.to_sql("extracted_data", conn, if_exists="replace", index=False)
+
+            # Convert dict/list columns to JSON strings for SQLite
+            df_sqlite = df.copy()
+            for col in df_sqlite.columns:
+                # Check if column contains dicts or lists
+                sample = (
+                    df_sqlite[col].dropna().iloc[0]
+                    if not df_sqlite[col].dropna().empty
+                    else None
+                )
+                if isinstance(sample, (dict, list)):
+                    df_sqlite[col] = df_sqlite[col].apply(
+                        lambda x: json.dumps(x) if x is not None else None
+                    )
+
+            df_sqlite.to_sql("extracted_data", conn, if_exists="replace", index=False)
             conn.close()
         except Exception as e:
             logger.error(f"SQLite export failed: {e}")

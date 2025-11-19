@@ -442,7 +442,12 @@ class ScramApp(App):
     async def _run_agent_loop(self, state: AgentState):
         """Run the agent graph loop."""
         try:
-            await agent_graph.ainvoke(state)
+            # Increase recursion limit for long-running crawls
+            # We cast to Any to bypass strict type checking for the config dict if needed,
+            # but usually passing a dict is fine for RunnableConfig in runtime.
+            # The type checker complains because RunnableConfig is a TypedDict and we are passing a plain dict.
+            # We can ignore the type error or cast it.
+            await agent_graph.ainvoke(state, config={"recursion_limit": 150})  # type: ignore
         except Exception as e:
             self.call_later(self.log_error, str(e))
 

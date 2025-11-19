@@ -1,8 +1,10 @@
 import json
 import logging
-from typing import Any, Dict, List, Type
+import base64
+from typing import Any, Dict, List, Type, Optional
 
 import google.generativeai as genai
+from openai import AsyncOpenAI
 from pydantic import BaseModel
 
 from src.core.config import config
@@ -21,36 +23,77 @@ logger = logging.getLogger(__name__)
 
 class GeminiClient:
     def __init__(self):
+        # Initialize Gemini
         if not config.GEMINI_API_KEY:
-            logger.warning("GEMINI_API_KEY not set. AI features will fail.")
+            logger.warning("GEMINI_API_KEY not set. Primary AI features will fail.")
         else:
             genai.configure(api_key=config.GEMINI_API_KEY)
 
-            # System Prompts
-            self.orchestrator_instruction = ORCHESTRATOR_INSTRUCTION
-            self.fast_agent_instruction = FAST_AGENT_INSTRUCTION
+        # Initialize OpenAI (Fallback)
+        self.openai_client: Optional[AsyncOpenAI] = None
+        if config.OPENAI_API_KEY:
+            self.openai_client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
+            logger.info("OpenAI fallback initialized.")
+        else:
+            logger.warning("OPENAI_API_KEY not set. Fallback AI features disabled.")
 
-            self.model_name = config.DEFAULT_MODEL
-            # system_instruction is supported in newer versions of google-generativeai
-            # If it fails, we might be on an older version or need to pass it differently.
-            # However, the error suggests unexpected keyword argument.
-            # Let's try configuring it via generation_config or just omit it for now if it causes issues,
-            # but system instructions are crucial.
-            # Actually, for google-generativeai < 0.4.0, system_instruction might not be supported in init.
-            # Let's check the version or try to pass it in generate_content if possible,
-            # but standard way is init.
-            # Assuming the library version installed supports it, maybe the argument name is different?
-            # No, it is system_instruction.
-            # Let's try to instantiate without it and see if tests pass, then re-add if needed or upgrade lib.
-            # But wait, I can't upgrade lib easily.
-            # I will remove system_instruction from init for now to fix the tests.
-            self.model = genai.GenerativeModel(self.model_name)
+        # System Prompts
+        self.orchestrator_instruction = ORCHESTRATOR_INSTRUCTION
+        self.fast_agent_instruction = FAST_AGENT_INSTRUCTION
 
-            self.fast_model_name = config.FAST_MODEL
-            self.fast_model = genai.GenerativeModel(self.fast_model_name)
-            logger.info(
-                f"AI initialized. Orchestrator: {self.model_name}, Fast: {self.fast_model_name}"
+        self.model_name = config.DEFAULT_MODEL
+        self.model = genai.GenerativeModel(self.model_name)
+
+        self.fast_model_name = config.FAST_MODEL
+        self.fast_model = genai.GenerativeModel(self.fast_model_name)
+
+        logger.info(
+            f"AI initialized. Orchestrator: {self.model_name}, Fast: {self.fast_model_name}"
+        )
+
+    async def _call_openai(
+        self,
+        prompt: str,
+        model_type: str = "fast",
+        image_bytes: Optional[bytes] = None,
+        system_instruction: Optional[str] = None,
+    ) -> str:
+        """Fallback to OpenAI."""
+        if not self.openai_client:
+            raise Exception("OpenAI fallback not configured.")
+
+        model = (
+            config.FALLBACK_FAST_MODEL
+            if model_type == "fast"
+            else config.FALLBACK_DEFAULT_MODEL
+        )
+
+        messages = []
+        if system_instruction:
+            messages.append({"role": "system", "content": system_instruction})
+
+        user_content: List[Dict[str, Any]] = [{"type": "text", "text": prompt}]
+
+        if image_bytes:
+            base64_image = base64.b64encode(image_bytes).decode("utf-8")
+            user_content.append(
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/png;base64,{base64_image}"},
+                }
             )
+
+        messages.append({"role": "user", "content": user_content})
+
+        try:
+            response = await self.openai_client.chat.completions.create(
+                model=model,
+                messages=messages,
+            )
+            return response.choices[0].message.content or ""
+        except Exception as e:
+            logger.error(f"OpenAI fallback failed: {e}")
+            raise
 
     def set_model(self, model_name: str):
         """Switch the active Gemini model (Orchestrator)."""
@@ -65,18 +108,29 @@ class GeminiClient:
         """
         prompt = get_seed_analysis_prompt(url, content)
 
-        response = None
+        response_text = ""
         try:
             response = await self.fast_model.generate_content_async(prompt)
-            cleaned_text = self._clean_json_response(response.text)
-            return json.loads(cleaned_text)
+            response_text = response.text
         except Exception as e:
-            logger.error(f"Seed analysis failed: {e}")
-            if response:
-                try:
-                    logger.debug(f"Raw response: {response.text}")
-                except Exception:
-                    pass
+            logger.warning(f"Gemini seed analysis failed: {e}. Trying fallback.")
+            try:
+                response_text = await self._call_openai(
+                    prompt,
+                    model_type="fast",
+                    system_instruction=self.fast_agent_instruction,
+                )
+            except Exception as e2:
+                logger.error(f"Fallback seed analysis failed: {e2}")
+                return {
+                    "summary": "Could not analyze page.",
+                    "suggestions": ["Extract all text", "Extract links", "Custom..."],
+                }
+
+        try:
+            cleaned_text = self._clean_json_response(response_text)
+            return json.loads(cleaned_text)
+        except Exception:
             return {
                 "summary": "Could not analyze page.",
                 "suggestions": ["Extract all text", "Extract links", "Custom..."],
@@ -93,8 +147,12 @@ class GeminiClient:
             response = await self.fast_model.generate_content_async(prompt)
             return response.text.strip()
         except Exception as e:
-            logger.error(f"Title generation failed: {e}")
-            return "Untitled Session"
+            logger.warning(f"Gemini title generation failed: {e}. Trying fallback.")
+            try:
+                return await self._call_openai(prompt, model_type="fast")
+            except Exception as e2:
+                logger.error(f"Fallback title generation failed: {e2}")
+                return "Untitled Session"
 
     async def generate_schema(self, objective: str) -> Type[BaseModel]:
         """
@@ -102,16 +160,27 @@ class GeminiClient:
         """
         prompt = get_schema_generation_prompt(objective)
 
+        response_text = ""
         try:
             response = await self.model.generate_content_async(prompt)
-            schema_json = self._clean_json_response(response.text)
-            # For now, we'll return a dynamic model based on this JSON
-            # In a real implementation, we might want to use more robust schema generation
-            # or just return the dict to be used by the extractor.
-            # Let's return a simple dict for now to represent the schema structure.
+            response_text = response.text
+        except Exception as e:
+            logger.warning(f"Gemini schema generation failed: {e}. Trying fallback.")
+            try:
+                response_text = await self._call_openai(
+                    prompt,
+                    model_type="smart",
+                    system_instruction=self.orchestrator_instruction,
+                )
+            except Exception as e2:
+                logger.error(f"Fallback schema generation failed: {e2}")
+                raise
+
+        try:
+            schema_json = self._clean_json_response(response_text)
             return json.loads(schema_json)
         except Exception as e:
-            logger.error(f"Schema generation failed: {e}")
+            logger.error(f"Schema parsing failed: {e}")
             raise
 
     async def analyze_relevance(
@@ -123,19 +192,26 @@ class GeminiClient:
         """
         prompt = get_relevance_analysis_prompt(objective, content, url)
 
-        response = None
+        response_text = ""
         try:
             response = await self.fast_model.generate_content_async(prompt)
-            cleaned_text = self._clean_json_response(response.text)
-            return json.loads(cleaned_text)
+            response_text = response.text
         except Exception as e:
-            logger.error(f"Relevance analysis failed: {e}")
-            # Log the raw response for debugging
-            if response:
-                try:
-                    logger.debug(f"Raw response: {response.text}")
-                except Exception:
-                    pass
+            logger.warning(f"Gemini relevance analysis failed: {e}. Trying fallback.")
+            try:
+                response_text = await self._call_openai(
+                    prompt,
+                    model_type="fast",
+                    system_instruction=self.fast_agent_instruction,
+                )
+            except Exception as e2:
+                logger.error(f"Fallback relevance analysis failed: {e2}")
+                return {"is_relevant": False, "reason": "Error", "next_urls": []}
+
+        try:
+            cleaned_text = self._clean_json_response(response_text)
+            return json.loads(cleaned_text)
+        except Exception:
             return {"is_relevant": False, "reason": "Error", "next_urls": []}
 
     async def analyze_api_endpoints(self, content: str, url: str) -> List[str]:
@@ -158,14 +234,23 @@ class GeminiClient:
         {content[:50000]}
         """
 
-        response = None
+        response_text = ""
         try:
             response = await self.fast_model.generate_content_async(prompt)
-            cleaned_text = self._clean_json_response(response.text)
+            response_text = response.text
+        except Exception as e:
+            logger.warning(f"Gemini API analysis failed: {e}. Trying fallback.")
+            try:
+                response_text = await self._call_openai(prompt, model_type="fast")
+            except Exception as e2:
+                logger.error(f"Fallback API analysis failed: {e2}")
+                return []
+
+        try:
+            cleaned_text = self._clean_json_response(response_text)
             result = json.loads(cleaned_text)
             return result.get("api_endpoints", [])
-        except Exception as e:
-            logger.error(f"API endpoint analysis failed: {e}")
+        except Exception:
             return []
 
     async def extract_data(
@@ -178,27 +263,33 @@ class GeminiClient:
         prompt_text = get_extraction_prompt(json.dumps(schema, indent=2), content)
 
         parts: List[Any] = [prompt_text]
-
         if screenshot:
-            # Add image part
             parts.append({"mime_type": "image/png", "data": screenshot})
 
-        response = None
+        response_text = ""
         try:
             response = await self.model.generate_content_async(parts)
-            cleaned_text = self._clean_json_response(response.text)
+            response_text = response.text
+        except Exception as e:
+            logger.warning(f"Gemini extraction failed: {e}. Trying fallback.")
+            try:
+                response_text = await self._call_openai(
+                    prompt_text,
+                    model_type="smart",
+                    image_bytes=screenshot if screenshot else None,
+                    system_instruction=self.orchestrator_instruction,
+                )
+            except Exception as e2:
+                logger.error(f"Fallback extraction failed: {e2}")
+                return []
+
+        try:
+            cleaned_text = self._clean_json_response(response_text)
             result = json.loads(cleaned_text)
-            # Ensure it's a list
             if isinstance(result, dict):
                 return [result]
             return result
-        except Exception as e:
-            logger.error(f"Data extraction failed: {e}")
-            if response:
-                try:
-                    logger.debug(f"Raw response: {response.text}")
-                except Exception:
-                    pass
+        except Exception:
             return []
 
     def _clean_json_response(self, text: str) -> str:

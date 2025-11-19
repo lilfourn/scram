@@ -8,8 +8,16 @@ load_dotenv()
 
 class Config:
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+    # Primary Models (Gemini)
     DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "gemini-3-pro-preview")
     FAST_MODEL = os.getenv("FAST_MODEL", "gemini-2.5-flash")
+
+    # Fallback Models (OpenAI)
+    FALLBACK_DEFAULT_MODEL = os.getenv("FALLBACK_DEFAULT_MODEL", "gpt-5.1-2025-11-13")
+    FALLBACK_FAST_MODEL = os.getenv("FALLBACK_FAST_MODEL", "gpt-5-mini-2025-08-07")
+
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
     PROJECT_ROOT = Path(__file__).parent.parent.parent
 

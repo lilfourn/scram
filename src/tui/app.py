@@ -447,7 +447,7 @@ class ScramApp(App):
             # but usually passing a dict is fine for RunnableConfig in runtime.
             # The type checker complains because RunnableConfig is a TypedDict and we are passing a plain dict.
             # We can ignore the type error or cast it.
-            await agent_graph.ainvoke(state, config={"recursion_limit": 150})  # type: ignore
+            await agent_graph.ainvoke(state, config={"recursion_limit": 500})  # type: ignore
         except Exception as e:
             self.call_later(self.log_error, str(e))
 

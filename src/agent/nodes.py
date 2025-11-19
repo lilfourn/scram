@@ -235,9 +235,13 @@ async def relevance_analyzer_node(state: AgentState) -> Dict[str, Any]:
                 state["objective"], analysis_content, url
             )
 
-            # Determine relevance based on score > 60
+            # Determine relevance based on score > 50 (lowered from 60)
             score = analysis.get("relevance_score", 0)
-            analysis["is_relevant"] = score > 60
+            analysis["is_relevant"] = score > 50
+            logger.info(
+                f"Relevance analysis for {url}: Score={score}, Relevant={analysis['is_relevant']}"
+            )
+
             if analysis["is_relevant"]:
                 logger.info(f"Page {url} is relevant (Score: {score})")
 

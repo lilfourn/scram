@@ -40,12 +40,16 @@ class GeminiClient:
             # Let's try to instantiate it cleanly.
             try:
                 self.openai_client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
-                logger.info("OpenAI fallback initialized.")
+                logger.info(
+                    f"OpenAI fallback initialized with key: {config.OPENAI_API_KEY[:5]}..."
+                )
             except TypeError as e:
                 logger.error(f"Failed to initialize OpenAI client: {e}")
                 self.openai_client = None
         else:
-            logger.warning("OPENAI_API_KEY not set. Fallback AI features disabled.")
+            logger.warning(
+                "OPENAI_API_KEY not set in config. Fallback AI features disabled."
+            )
 
         # System Prompts
         self.orchestrator_instruction = ORCHESTRATOR_INSTRUCTION

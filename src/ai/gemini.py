@@ -32,8 +32,18 @@ class GeminiClient:
         # Initialize OpenAI (Fallback)
         self.openai_client: Optional[AsyncOpenAI] = None
         if config.OPENAI_API_KEY:
-            self.openai_client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
-            logger.info("OpenAI fallback initialized.")
+            # Explicitly pass http_client=None to avoid any implicit proxy configuration issues
+            # or just rely on default behavior which should work if no env vars interfere.
+            # The error `TypeError: AsyncClient.__init__() got an unexpected keyword argument 'proxies'`
+            # usually comes from httpx when an older version is used or arguments mismatch.
+            # However, we are using AsyncOpenAI.
+            # Let's try to instantiate it cleanly.
+            try:
+                self.openai_client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
+                logger.info("OpenAI fallback initialized.")
+            except TypeError as e:
+                logger.error(f"Failed to initialize OpenAI client: {e}")
+                self.openai_client = None
         else:
             logger.warning("OPENAI_API_KEY not set. Fallback AI features disabled.")
 

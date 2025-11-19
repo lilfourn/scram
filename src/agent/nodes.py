@@ -8,6 +8,7 @@ from src.ai.gemini import GeminiClient
 from src.ai.compression import ContextCompressor
 from src.core.events import event_bus
 from src.data.export import exporter
+from src.data.collector import collector
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,9 @@ async def initialization_node(state: AgentState) -> Dict[str, Any]:
     """Initialize the session and generate schema if needed."""
     logger.info(f"Initializing session: {state['session_title']}")
     event_bus.publish("agent_activity", status="Initializing Session")
+
+    # Initialize raw data collector
+    collector.set_session(state["session_title"])
 
     updates = {
         "compressed_history": "Session started.",
@@ -310,14 +314,12 @@ async def extractor_node(state: AgentState) -> Dict[str, Any]:
             return []
 
         event_bus.publish(
-            "worker_status", worker_id=worker_id, status="Extracting Data", progress=80
+            "worker_status", worker_id=worker_id, status="Fast Extracting", progress=80
         )
 
         try:
-            # Pass screenshot to Gemini if available
-            data = await gemini_client.extract_data(
-                content, state["data_schema"], screenshot
-            )
+            # Use FAST extraction
+            data = await gemini_client.fast_extract(content, state["objective"])
 
             # Inject metadata
             from datetime import datetime, timezone
@@ -328,6 +330,7 @@ async def extractor_node(state: AgentState) -> Dict[str, Any]:
                 item["_metadata"] = {
                     "source_url": url,
                     "timestamp": timestamp,
+                    "screenshot_path": "pending",  # Screenshots handled in batch save if needed
                 }
 
             event_bus.publish(
@@ -360,33 +363,23 @@ async def extractor_node(state: AgentState) -> Dict[str, Any]:
 
     # Flatten results
     all_data = []
-    all_screenshots = []
 
-    for i, res in enumerate(results):
+    for res in results:
         if res:
             all_data.extend(res)
-            # Replicate screenshot for each item extracted from this page
-            if i < len(screenshots):
-                all_screenshots.extend([screenshots[i]] * len(res))
-            else:
-                all_screenshots.extend([b""] * len(res))
 
     if all_data:
-        logger.info(f"Extracted {len(all_data)} items total from batch.")
+        logger.info(f"Fast extracted {len(all_data)} items. Saving to raw collector.")
         event_bus.publish(
             "stats_update", metric="items_extracted", increment=len(all_data)
         )
 
-        # Publish latest item for TUI review
-        if all_data:
-            event_bus.publish("data_extracted", item=all_data[-1])
+        # Save raw data immediately
+        await collector.save(all_data)
 
-        # Save data immediately
-        # Note: save_batch is now async and needs to be awaited
-        await exporter.save_batch(state["session_title"], all_data, all_screenshots)
-
-        current_data = state.get("extracted_data", [])
-        return {"extracted_data": current_data + all_data}
+        # We don't update "extracted_data" in state anymore to keep state light
+        # The final data will be assembled at the end.
+        return {}
 
     return {}
 
@@ -420,12 +413,45 @@ async def rust_execution_node(state: AgentState) -> Dict[str, Any]:
 
 
 async def finalization_node(state: AgentState) -> Dict[str, Any]:
-    """Finalize the session: deduplicate and export."""
+    """Finalize the session: refine raw data, deduplicate, and export."""
     event_bus.publish("agent_activity", status="Finalizing Session")
     logger.info("Finalizing session...")
 
-    # Run export (now async with semantic deduplication)
+    # Load raw data
+    raw_data = await collector.load_all()
+    if not raw_data:
+        logger.info("No raw data to refine.")
+        event_bus.publish("agent_activity", status="Session Complete (No Data)")
+        return {}
+
+    logger.info(f"Refining {len(raw_data)} raw items...")
+    event_bus.publish("agent_activity", status=f"Refining {len(raw_data)} Items (AI)")
+
+    # Refine in batches
+    BATCH_SIZE = 20
+    refined_data = []
+
+    for i in range(0, len(raw_data), BATCH_SIZE):
+        batch = raw_data[i : i + BATCH_SIZE]
+        try:
+            cleaned_batch = await gemini_client.refine_data(batch, state["data_schema"])
+            refined_data.extend(cleaned_batch)
+            event_bus.publish(
+                "stats_update", metric="items_extracted", value=len(refined_data)
+            )
+        except Exception as e:
+            logger.error(f"Error refining batch {i}: {e}")
+
+    # Save final refined data
+    # We pass empty screenshots list as we didn't persist them in raw collector for speed
+    # In a full implementation, we'd link screenshots via metadata paths
+    await exporter.save_batch(state["session_title"], refined_data, [])
+
+    # Run export (deduplication happens here)
     await exporter.finalize_session(state["session_title"])
+
+    # Cleanup raw data
+    collector.cleanup()
 
     event_bus.publish("agent_activity", status="Session Complete")
     return {}

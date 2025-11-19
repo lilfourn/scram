@@ -302,6 +302,95 @@ class GeminiClient:
         except Exception:
             return []
 
+    async def fast_extract(self, content: str, objective: str) -> List[Dict[str, Any]]:
+        """
+        Fast extraction using the lightweight model.
+        Extracts raw data that looks relevant to the objective.
+        """
+        prompt = f"""
+        Objective: "{objective}"
+        
+        Extract ALL data from the content below that is relevant to the objective.
+        Be inclusive. Capture everything that might be useful.
+        Return a JSON list of objects.
+        
+        <content>
+        {content[:30000]}
+        </content>
+        """
+
+        response_text = ""
+        try:
+            response = await self.fast_model.generate_content_async(prompt)
+            response_text = response.text
+        except Exception as e:
+            logger.warning(f"Fast extraction failed: {e}. Trying fallback.")
+            try:
+                response_text = await self._call_openai(prompt, model_type="fast")
+            except Exception as e2:
+                logger.error(f"Fallback fast extraction failed: {e2}")
+                return []
+
+        try:
+            cleaned_text = self._clean_json_response(response_text)
+            result = json.loads(cleaned_text)
+            if isinstance(result, dict):
+                return [result]
+            return result
+        except Exception:
+            return []
+
+    async def refine_data(
+        self, raw_data: List[Dict[str, Any]], schema: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """
+        Refine and validate raw data against the schema using the smart model.
+        """
+        if not raw_data:
+            return []
+
+        prompt = f"""
+        You are a Data Quality Engineer.
+        Transform the following RAW DATA into clean, valid JSON matching the SCHEMA.
+        
+        SCHEMA:
+        {json.dumps(schema, indent=2)}
+        
+        RAW DATA:
+        {json.dumps(raw_data, indent=2)}
+        
+        Rules:
+        1. Fix data types (strings to numbers, etc).
+        2. Remove fields not in the schema.
+        3. Ensure strict adherence to the schema structure.
+        4. Return a JSON list of valid objects.
+        """
+
+        response_text = ""
+        try:
+            response = await self.model.generate_content_async(prompt)
+            response_text = response.text
+        except Exception as e:
+            logger.warning(f"Data refinement failed: {e}. Trying fallback.")
+            try:
+                response_text = await self._call_openai(
+                    prompt,
+                    model_type="smart",
+                    system_instruction=self.orchestrator_instruction,
+                )
+            except Exception as e2:
+                logger.error(f"Fallback data refinement failed: {e2}")
+                return []
+
+        try:
+            cleaned_text = self._clean_json_response(response_text)
+            result = json.loads(cleaned_text)
+            if isinstance(result, dict):
+                return [result]
+            return result
+        except Exception:
+            return []
+
     def _clean_json_response(self, text: str) -> str:
         """Helper to clean markdown code blocks from JSON response."""
         if not text:

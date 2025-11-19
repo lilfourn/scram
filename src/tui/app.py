@@ -189,10 +189,7 @@ class SetupScreen(Screen):
 
     HELP_TEXT = """
     /help show help
-    /sessions list sessions
-    /new start a new session
     /model switch model
-    /theme switch theme
     /exit exit the app
     """
 

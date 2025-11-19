@@ -54,7 +54,7 @@ Screen {
 .version {
     color: #585b70;
     text-align: center;
-    margin-bottom: 2;
+    margin-bottom: 1;
     width: 100%;
 }
 
@@ -64,7 +64,7 @@ Screen {
 .commands {
     color: #a6adc8;
     text-align: center;
-    margin-bottom: 2;
+    margin-bottom: 1;
     width: 100%;
 }
 
@@ -75,7 +75,7 @@ Screen {
     height: 1fr;
     align: center bottom;
     padding-bottom: 1;
-    overflow-y: scroll;
+    overflow-y: auto;
 }
 
 .history-item {
@@ -92,9 +92,9 @@ Screen {
     height: auto;
     min-height: 3;
     background: #181825;
-    padding: 0 1;
+    padding: 1 1;
     align-vertical: middle;
-    margin-top: 1;
+    margin-top: 0;
     margin-bottom: 1;
     border-left: solid #89b4fa;
     layout: horizontal;

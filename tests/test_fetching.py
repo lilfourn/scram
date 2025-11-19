@@ -30,14 +30,15 @@ async def test_fetching_flow_http_success():
     with patch(
         "src.fetching.engine.scram_hpc_rs.fetch_url", new_callable=AsyncMock
     ) as mock_fetch:
-        mock_fetch.return_value = ("<html>Success</html>", 200)
+        mock_fetch.return_value = ("<html>Success</html>", 200, 100, {})
 
         # We don't start the full engine, just test the worker logic or internal methods
         # But to test worker, we need to start it.
         # Let's just test _fetch_http directly first
-        content, status = await engine._fetch_http("http://example.com")
+        content, status, wire_length = await engine._fetch_http("http://example.com")
         assert status == 200
         assert content == "<html>Success</html>"
+        assert wire_length == 100
 
 
 @pytest.mark.asyncio

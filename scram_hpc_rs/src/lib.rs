@@ -28,12 +28,22 @@ fn fetch_url(py: Python, url: String, headers: Option<HashMap<String, String>>) 
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
 
         let status = response.status().as_u16();
+        let wire_length = response.content_length();
+        
+        // Extract headers
+        let mut headers_map = HashMap::new();
+        for (key, value) in response.headers() {
+            if let Ok(v) = value.to_str() {
+                headers_map.insert(key.to_string(), v.to_string());
+            }
+        }
+
         let text = response
             .text()
             .await
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
 
-        Ok((text, status))
+        Ok((text, status, wire_length, headers_map))
     })
 }
 

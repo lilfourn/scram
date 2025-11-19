@@ -439,12 +439,30 @@ async def finalization_node(state: AgentState) -> Dict[str, Any]:
         batch = raw_data[i : i + BATCH_SIZE]
         try:
             cleaned_batch = await gemini_client.refine_data(batch, state["data_schema"])
-            refined_data.extend(cleaned_batch)
-            event_bus.publish(
-                "stats_update", metric="items_extracted", value=len(refined_data)
-            )
+            if cleaned_batch:
+                refined_data.extend(cleaned_batch)
+                event_bus.publish(
+                    "stats_update", metric="items_extracted", value=len(refined_data)
+                )
+            else:
+                logger.warning(
+                    f"Batch {i} refinement returned empty. Keeping raw data."
+                )
+                # Fallback: keep raw data if refinement returns nothing (e.g. due to error)
+                # We might want to mark it as unrefined
+                for item in batch:
+                    item["_refined"] = False
+                refined_data.extend(batch)
         except Exception as e:
             logger.error(f"Error refining batch {i}: {e}")
+            # Fallback: keep raw data
+            for item in batch:
+                item["_refined"] = False
+            refined_data.extend(batch)
+
+    if not refined_data and raw_data:
+        logger.warning("Refinement failed completely. Saving raw data.")
+        refined_data = raw_data
 
     # Save final refined data
     # We pass empty screenshots list as we didn't persist them in raw collector for speed
@@ -454,8 +472,9 @@ async def finalization_node(state: AgentState) -> Dict[str, Any]:
     # Run export (deduplication happens here)
     await exporter.finalize_session(state["session_title"])
 
-    # Cleanup raw data
-    collector.cleanup()
+    # Cleanup raw data only if we successfully saved something
+    if refined_data:
+        collector.cleanup()
 
     event_bus.publish("agent_activity", status="Session Complete")
     return {}

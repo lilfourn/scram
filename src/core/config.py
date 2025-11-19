@@ -5,6 +5,12 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
+# Debug: Check if keys are loaded (masked)
+if os.getenv("OPENAI_API_KEY"):
+    print(f"DEBUG: OPENAI_API_KEY found: {os.getenv('OPENAI_API_KEY')[:5]}...")
+else:
+    print("DEBUG: OPENAI_API_KEY NOT found in environment.")
+
 
 class Config:
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")

@@ -40,6 +40,34 @@ class ContextCompressor:
             logger.error(f"History compression failed: {e}")
             return current_summary + "\n" + "\n".join(recent_activity)
 
+    async def compress_observation(self, html_content: str, objective: str) -> str:
+        """
+        Compress raw HTML into a semantic summary relevant to the objective.
+        """
+        # Truncate very large HTML to avoid token limits even for the compressor
+        truncated_html = html_content[:100000]
+
+        prompt = f"""
+        Compress the following HTML content into a semantic summary relevant to the objective: "{objective}".
+        
+        Rules:
+        - Extract key entities, main content areas, and navigation structures.
+        - Ignore boilerplate, ads, and scripts.
+        - Format as a concise markdown list or paragraph.
+        - Max 500 words.
+        
+        HTML Content (Truncated):
+        {truncated_html}
+        """
+
+        try:
+            response = await self.client.fast_model.generate_content_async(prompt)
+            return response.text.strip()
+        except Exception as e:
+            logger.error(f"Observation compression failed: {e}")
+            # Fallback to a simple slice if AI fails
+            return html_content[:2000] + "... (Compression Failed)"
+
     async def compress_image(self, image_bytes: bytes) -> List[float]:
         """
         Compress an image into a lightweight latent vector (8x8 grayscale grid).
